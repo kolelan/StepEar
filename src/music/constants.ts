@@ -48,7 +48,11 @@ export const REINFORCEMENT_SEQUENCES: Record<number, number[]> = {
   8: [8],
 }
 
-export const CADENCE_T_D_S_T = [1, 5, 4, 1] as const
+/**
+ * Каденция по умолчанию T–S–D–T:
+ * тоника (1) → субдоминанта (4) → доминанта (5) → тоника (1).
+ */
+export const CADENCE_T_S_D_T = [1, 4, 5, 1] as const
 
 export const DEFAULT_COLOR_THRESHOLDS = {
   green: 90,

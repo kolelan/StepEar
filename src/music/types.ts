@@ -48,11 +48,27 @@ export const MAJOR_ROOT_LABELS: Record<NoteName, string> = {
 
 export type ChordQuality = 'major' | 'minor' | 'diminished'
 
+export type PianoOctaveId =
+  | 'subcontra'
+  | 'contra'
+  | 'great'
+  | 'small'
+  | 'first'
+  | 'second'
+  | 'third'
+  | 'fourth'
+  | 'fifth'
+
+export type OctaveConfig = Record<PianoOctaveId, boolean>
+
+export type InstrumentId = 'piano' | 'guitar'
+
 export interface ScaleDefinition {
   root: NoteName
   rootMidi: number
   degrees: number[]
   keyPreference: KeyPreference
+  octaveConfig: OctaveConfig
 }
 
 export interface VoicedChord {

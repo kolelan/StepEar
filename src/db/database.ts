@@ -1,15 +1,22 @@
 import Dexie, { type Table } from 'dexie'
-import type { NoteName, NotationMode } from '@/music/types'
+import type { ExerciseMode } from '@/stores/exercise'
+import type { InstrumentId, NoteName, NotationMode, OctaveConfig } from '@/music/types'
 
 export interface SavedExercise {
   id?: number
   name: string
+  mode?: ExerciseMode
   root: NoteName | 'random'
   steps: number[]
+  dictationSoundCount?: number
   questionCount: number
   bpm: number
   showHintAfterError: boolean
+  highlightQuestionOnPlay?: boolean
   notationMode: NotationMode
+  octaves?: OctaveConfig
+  instrument?: InstrumentId
+  balancedSteps?: boolean
   createdAt: number
 }
 
@@ -17,6 +24,7 @@ export interface SessionRecord {
   id?: number
   finishedAt: number
   root: NoteName
+  mode?: ExerciseMode
   totalQuestions: number
   correctQuestions: number
   stepStats: Record<string, { asked: number; correct: number }>

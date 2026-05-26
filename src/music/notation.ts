@@ -1,4 +1,5 @@
 import { getChordMidis } from './scale'
+import { getStep8ChordMidis } from './step8'
 import type { NotationMode, ScaleDefinition } from './types'
 
 const SHARP_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const
@@ -42,6 +43,6 @@ export function formatChordForStep(
   scale: ScaleDefinition,
   mode: NotationMode,
 ): string {
-  const midis = getChordMidis(scale, step)
+  const midis = step === 8 ? getStep8ChordMidis(scale) : getChordMidis(scale, step)
   return midis.map((m) => formatMidiNote(m, scale, mode)).join(' ')
 }

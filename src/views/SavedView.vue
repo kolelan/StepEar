@@ -17,14 +17,18 @@ async function load(): Promise<void> {
 }
 
 function apply(p: SavedExercise): void {
-  exercise.config.root = p.root
-  exercise.config.steps = [...p.steps]
-  exercise.config.questionCount = p.questionCount
-  exercise.config.bpm = p.bpm
-  exercise.config.showHintAfterError = p.showHintAfterError
+  exercise.loadFromSaved(p)
   settings.notationMode = p.notationMode
   void settings.save()
   router.push('/train')
+}
+
+function editPreset(p: SavedExercise): void {
+  router.push({ path: '/setup', query: { edit: String(p.id) } })
+}
+
+function modeLabel(mode?: SavedExercise['mode']): string {
+  return mode === 'dictation' ? 'Гармонический диктант' : 'Угадай ступень'
 }
 
 async function remove(id: number): Promise<void> {
@@ -47,11 +51,17 @@ onMounted(load)
     <div v-for="item in list" :key="item.id" class="card">
       <h2>{{ item.name }}</h2>
       <p class="muted">
-        {{ rootLabel(item.root) }} · ступени {{ item.steps.join(', ') }} ·
-        {{ item.questionCount }} вопросов · {{ item.bpm }} BPM
+        {{ modeLabel(item.mode) }} · {{ rootLabel(item.root) }} · ступени
+        {{ item.steps.join(', ') }} · {{ item.questionCount }} вопросов · {{ item.bpm }} BPM
+        <template v-if="item.mode === 'dictation'">
+          · {{ item.dictationSoundCount ?? 4 }} звуков
+        </template>
       </p>
-      <div class="row">
-        <button type="button" class="btn" @click="apply(item)">Загрузить</button>
+      <div class="row preset-actions">
+        <button type="button" class="btn" @click="apply(item)">Начать</button>
+        <button type="button" class="btn btn-secondary" @click="editPreset(item)">
+          Изменить
+        </button>
         <button type="button" class="btn btn-danger" @click="remove(item.id!)">
           Удалить
         </button>
@@ -59,3 +69,10 @@ onMounted(load)
     </div>
   </div>
 </template>
+
+<style scoped>
+.preset-actions {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+</style>

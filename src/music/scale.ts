@@ -1,37 +1,52 @@
 import {
   CHORD_INTERVALS,
   DEGREE_QUALITIES,
-  FIRST_OCTAVE_BASE_MIDI,
-  KEY_PREFERENCE_BY_ROOT,
   MAJOR_SEMITONES,
 } from './constants'
-import { ROOT_NAMES, type NoteName, type ScaleDefinition } from './types'
+import {
+  createDefaultOctaveConfig,
+  getEnabledRanges,
+  placeChordFromDegree,
+  tonicBaseMidi,
+} from './octaves'
+import { KEY_PREFERENCE_BY_ROOT } from './constants'
+import { getStep8ChordMidis } from './step8'
+import { ROOT_NAMES, type NoteName, type OctaveConfig, type ScaleDefinition } from './types'
 
-export function noteNameToMidi(name: NoteName, octaveBase = FIRST_OCTAVE_BASE_MIDI): number {
-  const idx = ROOT_NAMES.indexOf(name)
-  return octaveBase + idx
-}
-
-export function buildMajorScale(root: NoteName): ScaleDefinition {
-  const rootMidi = noteNameToMidi(root)
+export function buildMajorScale(
+  root: NoteName,
+  octaveConfig: OctaveConfig = createDefaultOctaveConfig(),
+): ScaleDefinition {
+  const rootMidi = tonicBaseMidi(root, octaveConfig)
   const degrees = MAJOR_SEMITONES.map((s) => rootMidi + s)
   return {
     root,
     rootMidi,
     degrees,
     keyPreference: KEY_PREFERENCE_BY_ROOT[root],
+    octaveConfig,
   }
 }
 
 export function getChordMidis(scale: ScaleDefinition, step: number): number[] {
+  const ranges = getEnabledRanges(scale.octaveConfig)
   const degreeIndex = ((step - 1) % 7 + 7) % 7
-  const quality = DEGREE_QUALITIES[degreeIndex]
-  const root = scale.degrees[degreeIndex]
+  const quality = DEGREE_QUALITIES[degreeIndex]!
+
   if (step === 8) {
-    return getChordMidis(scale, 1).map((n) => n + 12)
+    return getStep8ChordMidis(scale)
   }
+
+  const root = scale.degrees[degreeIndex]!
+  const placed = placeChordFromDegree(root, quality, ranges)
+  if (placed) return placed
+
   return CHORD_INTERVALS[quality].map((i) => root + i)
 }
+
+export { isStepPlayable, filterPlayableSteps } from './octaves'
+export { createDefaultOctaveConfig, describeOctaveConfig, migrateOctaveConfig } from './octaves'
+export type { OctaveConfig } from './types'
 
 export function getScaleLabel(root: NoteName): string {
   const names: Record<NoteName, string> = {

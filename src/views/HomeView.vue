@@ -5,7 +5,10 @@ import { RouterLink } from 'vue-router'
 <template>
   <div class="container">
     <h1>Слуховой тренажёр</h1>
-    <p class="muted">Угадай ступень гаммы после каденции. Каденция T–D–S–T, мажорные тональности.</p>
+    <p class="muted">
+      Угадай ступень или запиши цепочку ступеней после каденции. Каденция T–S–D–T (1–4–5–1), мажорные
+      тональности.
+    </p>
     <div class="card">
       <div class="row">
         <RouterLink class="btn" to="/setup">Настроить упражнение</RouterLink>
