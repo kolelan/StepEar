@@ -63,6 +63,12 @@ export type OctaveConfig = Record<PianoOctaveId, boolean>
 
 export type InstrumentId = 'piano' | 'guitar'
 
+/** Обращение аккорда в вопросе и диктанте (каденция и закрепление — корень внизу). */
+export type QuestionChordInversion = 'root' | 'first' | 'second'
+
+/** Сколько нот в каждом аккорде закрепления: 1 — корень, 2 — корень и терция, 3 — трезвучие. */
+export type ReinforcementNoteCount = 1 | 2 | 3
+
 export interface ScaleDefinition {
   root: NoteName
   rootMidi: number

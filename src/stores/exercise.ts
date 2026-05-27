@@ -1,14 +1,24 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { DEFAULT_CADENCE_NOTATION } from '@/music/cadence-notation'
 import { DEFAULT_BPM, DEFAULT_COLOR_THRESHOLDS } from '@/music/constants'
 import { createDefaultOctaveConfig, filterPlayableSteps, migrateOctaveConfig } from '@/music/octaves'
+import { normalizeQuestionChordInversion } from '@/music/chord-inversion'
 import {
   buildBalancedQuestionPlan,
   pickRandomQuestionStep,
 } from '@/music/question-plan'
 import { buildMajorScale, pickRandomRoot } from '@/music/scale'
 import type { SavedExercise } from '@/db/database'
-import type { InstrumentId, NoteName, NotationMode, OctaveConfig } from '@/music/types'
+import { clampReinforcementNoteCount } from '@/music/reinforcement-notes'
+import type {
+  InstrumentId,
+  NoteName,
+  NotationMode,
+  OctaveConfig,
+  QuestionChordInversion,
+  ReinforcementNoteCount,
+} from '@/music/types'
 
 export type ExerciseMode = 'stepGuess' | 'dictation'
 
@@ -19,13 +29,26 @@ export interface ExerciseConfig {
   /** Число звуков ступеней в одном вопросе диктанта. */
   dictationSoundCount: number
   questionCount: number
+  /** Темп вопроса и цепочки диктанта. */
   bpm: number
+  /** Темп вступительной каденции. */
+  cadenceBpm: number
+  /** Нотация каденции: ступени, обращения, [C4 E4 G4]. */
+  cadenceNotation: string
+  /** Темп закрепляющей последовательности. */
+  reinforcementBpm: number
+  /** Нот в каждом аккорде закрепления: 1 — корень, 2 — корень и терция, 3 — трезвучие. */
+  reinforcementNoteCount: ReinforcementNoteCount
   showHintAfterError: boolean
   /** Подсвечивать кнопку ступени при проигрывании вопроса (каденция и закрепление всегда). */
   highlightQuestionOnPlay: boolean
   octaves: OctaveConfig
   instrument: InstrumentId
   balancedSteps: boolean
+  /** Сколько нот звучит в аккорде вопроса: 1–4. */
+  questionNoteCount: number
+  /** Обращение аккорда в вопросе и диктанте. */
+  questionChordInversion: QuestionChordInversion
 }
 
 const ALL_STEP_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8] as const
@@ -38,11 +61,17 @@ export const useExerciseStore = defineStore('exercise', () => {
     dictationSoundCount: 4,
     questionCount: 20,
     bpm: DEFAULT_BPM,
+    cadenceBpm: DEFAULT_BPM,
+    cadenceNotation: DEFAULT_CADENCE_NOTATION,
+    reinforcementBpm: DEFAULT_BPM,
+    reinforcementNoteCount: 3,
     showHintAfterError: false,
     highlightQuestionOnPlay: false,
     octaves: createDefaultOctaveConfig(),
     instrument: 'piano',
     balancedSteps: true,
+    questionNoteCount: 3,
+    questionChordInversion: 'root',
   })
 
   const questionPlan = ref<number[]>([])
@@ -133,12 +162,23 @@ export const useExerciseStore = defineStore('exercise', () => {
     config.value.root = p.root
     config.value.steps = [...p.steps]
     config.value.questionCount = p.questionCount
-    config.value.bpm = p.bpm
+    const legacyBpm = p.bpm
+    config.value.bpm = legacyBpm
+    config.value.cadenceBpm = p.cadenceBpm ?? legacyBpm
+    config.value.cadenceNotation = p.cadenceNotation?.trim() || DEFAULT_CADENCE_NOTATION
+    config.value.reinforcementBpm = p.reinforcementBpm ?? legacyBpm
+    config.value.reinforcementNoteCount = clampReinforcementNoteCount(
+      p.reinforcementNoteCount ?? 3,
+    )
     config.value.showHintAfterError = p.showHintAfterError
     config.value.highlightQuestionOnPlay = p.highlightQuestionOnPlay ?? false
     config.value.octaves = migrateOctaveConfig(p.octaves)
     config.value.instrument = p.instrument ?? 'piano'
     config.value.balancedSteps = p.balancedSteps ?? true
+    config.value.questionNoteCount = p.questionNoteCount ?? 3
+    config.value.questionChordInversion = normalizeQuestionChordInversion(
+      p.questionChordInversion,
+    )
     syncStepsToOctaves()
   }
 
@@ -151,12 +191,18 @@ export const useExerciseStore = defineStore('exercise', () => {
       steps: [...config.value.steps],
       questionCount: config.value.questionCount,
       bpm: config.value.bpm,
+      cadenceBpm: config.value.cadenceBpm,
+      cadenceNotation: config.value.cadenceNotation.trim() || DEFAULT_CADENCE_NOTATION,
+      reinforcementBpm: config.value.reinforcementBpm,
+      reinforcementNoteCount: config.value.reinforcementNoteCount,
       showHintAfterError: config.value.showHintAfterError,
       highlightQuestionOnPlay: config.value.highlightQuestionOnPlay,
       notationMode,
       octaves: { ...config.value.octaves },
       instrument: config.value.instrument,
       balancedSteps: config.value.balancedSteps,
+      questionNoteCount: config.value.questionNoteCount,
+      questionChordInversion: config.value.questionChordInversion,
       createdAt: Date.now(),
     }
   }

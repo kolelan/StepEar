@@ -7,6 +7,7 @@ import {
 import { isAnswerCorrect, shouldPlayReinforcement } from '@/music/tonic-steps'
 import { useExerciseStore } from '@/stores/exercise'
 import { db, type SessionRecord } from '@/db/database'
+import { groupSteps } from '@/utils/group-steps'
 
 export type Phase = 'idle' | 'playing' | 'answering' | 'reinforcing' | 'finished'
 
@@ -47,6 +48,9 @@ export function useTrainingSession() {
     stepResults.value.filter((r) => !r.success).map((r) => r.step),
   )
 
+  const guessedStepGroups = computed(() => groupSteps(guessedSteps.value))
+  const missedStepGroups = computed(() => groupSteps(missedSteps.value))
+
   /** Завершённые вопросы, на которых была хотя бы одна ошибка или пропуск. */
   const failedQuestions = computed(
     () => completedQuestions.value - correctQuestions.value,
@@ -81,6 +85,15 @@ export function useTrainingSession() {
     questionIndex.value++
   }
 
+  /** Подсветка кнопок только пока идёт звук (без «залипания» между вопросами). */
+  const highlightedPlaybackStep = computed(() =>
+    isPlaying.value ? playbackStep.value : null,
+  )
+
+  function clearStepHighlights(): void {
+    playbackStep.value = null
+  }
+
   const playbackCallbacks: PlaybackStepCallbacks = {
     onStepStart: (step) => {
       playbackStep.value = step
@@ -104,6 +117,10 @@ export function useTrainingSession() {
     stepResults.value = []
     attempts.value = []
     playback.setInstrument(exerciseStore.config.instrument)
+    playback.setQuestionNoteCount(exerciseStore.config.questionNoteCount)
+    playback.setQuestionChordInversion(exerciseStore.config.questionChordInversion)
+    playback.setReinforcementNoteCount(exerciseStore.config.reinforcementNoteCount)
+    playback.setCadenceNotation(exerciseStore.config.cadenceNotation)
     playback.resetVoicing()
     await playback.unlock(exerciseStore.config.instrument)
     await nextQuestion()
@@ -127,17 +144,19 @@ export function useTrainingSession() {
     currentAttemptAnswers.value = []
     hintStep.value = null
     questionHadWrongAttempt.value = false
+    clearStepHighlights()
     phase.value = 'playing'
     isPlaying.value = true
     await playback.playCadenceAndQuestion(
       exerciseStore.scale,
       currentStep.value,
+      exerciseStore.config.cadenceBpm,
       exerciseStore.config.bpm,
       playbackCallbacks,
       playbackHighlightOptions(),
     )
     isPlaying.value = false
-    playbackStep.value = null
+    clearStepHighlights()
     phase.value = 'answering'
   }
 
@@ -152,7 +171,7 @@ export function useTrainingSession() {
       playbackHighlightOptions(),
     )
     isPlaying.value = false
-    playbackStep.value = null
+    clearStepHighlights()
   }
 
   async function repeatWithCadence(): Promise<void> {
@@ -161,12 +180,13 @@ export function useTrainingSession() {
     await playback.playCadenceAndQuestion(
       exerciseStore.scale,
       currentStep.value,
+      exerciseStore.config.cadenceBpm,
       exerciseStore.config.bpm,
       playbackCallbacks,
       playbackHighlightOptions(),
     )
     isPlaying.value = false
-    playbackStep.value = null
+    clearStepHighlights()
   }
 
   async function submitAnswer(step: number): Promise<void> {
@@ -188,11 +208,11 @@ export function useTrainingSession() {
         await playback.playReinforcement(
           exerciseStore.scale,
           currentStep.value,
-          exerciseStore.config.bpm,
+          exerciseStore.config.reinforcementBpm,
           playbackCallbacks,
         )
         isPlaying.value = false
-        playbackStep.value = null
+        clearStepHighlights()
       }
       if (questionIndex.value >= totalQuestions.value) {
         phase.value = 'finished'
@@ -225,7 +245,7 @@ export function useTrainingSession() {
 
   function abort(): void {
     playback.abort()
-    playbackStep.value = null
+    clearStepHighlights()
     phase.value = 'idle'
     questionIndex.value = 0
   }
@@ -242,9 +262,17 @@ export function useTrainingSession() {
       totalQuestions: completedQuestions.value,
       correctQuestions: correctQuestions.value,
       stepStats: Object.fromEntries(
-        Object.entries(stepStats.value).map(([k, v]) => [k, v]),
+        Object.entries(stepStats.value).map(([k, v]) => [
+          k,
+          { asked: v.asked, correct: v.correct },
+        ]),
       ),
-      attempts: attempts.value,
+      attempts: attempts.value.map((a) => ({
+        questionStep: a.questionStep,
+        answers: [...a.answers],
+        skipped: a.skipped,
+        eventuallyCorrect: a.eventuallyCorrect,
+      })),
     }
     await db.sessions.add(record)
   }
@@ -255,7 +283,7 @@ export function useTrainingSession() {
     currentStep,
     hintStep,
     isPlaying,
-    playbackStep,
+    highlightedPlaybackStep,
     completedQuestions,
     correctQuestions,
     failedQuestions,
@@ -264,6 +292,8 @@ export function useTrainingSession() {
     stepResults,
     guessedSteps,
     missedSteps,
+    guessedStepGroups,
+    missedStepGroups,
     percent,
     progressLabel,
     start,

@@ -54,9 +54,29 @@ export class VoicingEngine {
     this.lastVoicing = null
   }
 
-  voiceStep(scale: ScaleDefinition, step: number, motion: VoicingMotion = 'free'): number[] {
+  voiceFromPlaced(
+    scale: ScaleDefinition,
+    step: number,
+    placed: number[],
+    motion: VoicingMotion = 'free',
+  ): number[] {
     const ranges = getEnabledRanges(scale.octaveConfig)
+    return this.voiceCandidates(scale, step, placed, ranges, motion)
+  }
+
+  voiceStep(scale: ScaleDefinition, step: number, motion: VoicingMotion = 'free'): number[] {
     const placed = getChordMidis(scale, step)
+    const ranges = getEnabledRanges(scale.octaveConfig)
+    return this.voiceCandidates(scale, step, placed, ranges, motion)
+  }
+
+  private voiceCandidates(
+    scale: ScaleDefinition,
+    step: number,
+    placed: number[],
+    ranges: ReturnType<typeof getEnabledRanges>,
+    motion: VoicingMotion,
+  ): number[] {
     let candidates = generateVoicings(placed, ranges)
     if (step === 8) {
       const minBass = getStep8RootMidi(scale)

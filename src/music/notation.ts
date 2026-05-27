@@ -1,6 +1,7 @@
+import { clampQuestionNoteCount, getQuestionChordMidis } from './question-chord'
 import { getChordMidis } from './scale'
 import { getStep8ChordMidis } from './step8'
-import type { NotationMode, ScaleDefinition } from './types'
+import type { NotationMode, QuestionChordInversion, ScaleDefinition } from './types'
 
 const SHARP_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const
 const FLAT_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'] as const
@@ -42,7 +43,19 @@ export function formatChordForStep(
   step: number,
   scale: ScaleDefinition,
   mode: NotationMode,
+  questionNoteCount?: number,
+  questionChordInversion?: QuestionChordInversion,
 ): string {
-  const midis = step === 8 ? getStep8ChordMidis(scale) : getChordMidis(scale, step)
+  const midis =
+    questionNoteCount != null
+      ? getQuestionChordMidis(
+          scale,
+          step,
+          clampQuestionNoteCount(questionNoteCount),
+          questionChordInversion ?? 'root',
+        )
+      : step === 8
+        ? getStep8ChordMidis(scale)
+        : getChordMidis(scale, step)
   return midis.map((m) => formatMidiNote(m, scale, mode)).join(' ')
 }

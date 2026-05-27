@@ -63,6 +63,10 @@ export function useDictationSession() {
     },
   }
 
+  const highlightedPlaybackStep = computed(() =>
+    isPlaying.value ? playbackStep.value : null,
+  )
+
   function clearPlaybackHighlight(): void {
     playbackStep.value = null
     activeSlotIndex.value = null
@@ -78,6 +82,9 @@ export function useDictationSession() {
     completedQuestions.value = 0
     correctQuestions.value = 0
     playback.setInstrument(exerciseStore.config.instrument)
+    playback.setQuestionNoteCount(exerciseStore.config.questionNoteCount)
+    playback.setQuestionChordInversion(exerciseStore.config.questionChordInversion)
+    playback.setCadenceNotation(exerciseStore.config.cadenceNotation)
     playback.resetVoicing()
     await playback.unlock(exerciseStore.config.instrument)
     await nextQuestion()
@@ -101,11 +108,13 @@ export function useDictationSession() {
     userAnswer.value = []
     slotResults.value = []
 
+    clearPlaybackHighlight()
     phase.value = 'playing'
     isPlaying.value = true
     await playback.playCadenceAndSequence(
       exerciseStore.scale,
       expectedSequence.value,
+      exerciseStore.config.cadenceBpm,
       exerciseStore.config.bpm,
       playbackCallbacks,
       dictationPlaybackOptions(),
@@ -169,6 +178,7 @@ export function useDictationSession() {
     await playback.playCadenceAndSequence(
       exerciseStore.scale,
       expectedSequence.value,
+      exerciseStore.config.cadenceBpm,
       exerciseStore.config.bpm,
       playbackCallbacks,
       dictationPlaybackOptions(),
@@ -241,7 +251,7 @@ export function useDictationSession() {
     phase,
     progressLabel,
     isPlaying,
-    playbackStep,
+    highlightedPlaybackStep,
     activeSlotIndex,
     expectedSequence,
     userAnswer,

@@ -3,6 +3,10 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useExerciseStore } from '@/stores/exercise'
 import { useSettingsStore } from '@/stores/settings'
+import {
+  DEFAULT_CADENCE_NOTATION,
+  parseCadenceNotation,
+} from '@/music/cadence-notation'
 import { buildMajorScale, describeOctaveConfig, getScaleLabel } from '@/music/scale'
 import { filterPlayableSteps, PIANO_OCTAVE_DEFS } from '@/music/octaves'
 import type { PianoOctaveId } from '@/music/types'
@@ -40,6 +44,13 @@ const trainingStepsPreview = computed(() => {
 const excludedSteps = computed(() =>
   exercise.config.steps.filter((s) => !trainingStepsPreview.value.includes(s)),
 )
+
+const cadenceParse = computed(() => parseCadenceNotation(exercise.config.cadenceNotation))
+const cadenceError = computed(() => (cadenceParse.value.ok ? '' : cadenceParse.value.error))
+
+function resetCadenceToDefault(): void {
+  exercise.config.cadenceNotation = DEFAULT_CADENCE_NOTATION
+}
 
 function toggleStep(step: number, checked: boolean): void {
   const set = new Set(exercise.config.steps)
@@ -199,6 +210,36 @@ function start(): void {
       </div>
 
       <div class="field">
+        <label for="setup-cadence">Вступительная каденция</label>
+        <input
+          id="setup-cadence"
+          v-model="exercise.config.cadenceNotation"
+          type="text"
+          class="cadence-input"
+          spellcheck="false"
+          :placeholder="DEFAULT_CADENCE_NOTATION"
+        />
+        <p v-if="cadenceError" class="warn cadence-warn">
+          {{ cadenceError }}
+          При тренировке будет
+          <button type="button" class="link-btn" @click="resetCadenceToDefault">
+            {{ DEFAULT_CADENCE_NOTATION }}
+          </button>
+        </p>
+        <p class="muted cadence-hint">
+          Ступени через пробел:
+          <code>1 4 5 1</code>
+          или с обращением (вторая цифра 0–2):
+          <code>1 42 51 1</code>
+          (42 — IV в 2-м обращении, 51 — V в 1-м).
+          Явные ноты в скобках, 1–10 нот:
+          <code>[C4 E4 G4]</code>
+          или
+          <code>[C4 E4] [F4 A4] [G4 B4 D5] [C4 E4 G4]</code>
+        </p>
+      </div>
+
+      <div class="field">
         <label>Октавы (диапазон фортепиано A0–C8)</label>
         <p class="muted octave-note">
           Тоника — в <strong>нижней</strong> выбранной октаве. Корень ступени — в её октаве;
@@ -258,65 +299,130 @@ function start(): void {
         </p>
       </div>
 
-      <div v-if="exercise.config.mode === 'stepGuess'" class="field">
-        <label>
+      <div v-if="exercise.config.mode === 'stepGuess'" class="field field-one-line">
+        <label class="field-one-line__check">
           <input v-model="exercise.config.balancedSteps" type="checkbox" />
           Равномерное распределение ступеней по вопросам
         </label>
-        <p class="muted">
-          Каждая выбранная ступень встречается примерно одинаково часто (без перекоса в случайную
-          1-ю ступень).
+        <span class="muted field-one-line__hint">
+          — каждая выбранная ступень встречается примерно одинаково часто (без перекоса в случайную
+          1-ю ступень)
+        </span>
+      </div>
+
+      <div class="field field-pair">
+        <div>
+          <label>Нот в вопросе</label>
+          <select v-model.number="exercise.config.questionNoteCount">
+            <option :value="1">1 — главная нота аккорда (корень)</option>
+            <option :value="2">2 — корень и терция (большая или малая)</option>
+            <option :value="3">3 — трезвучие ступени</option>
+            <option :value="4">4 — септаккорд в тональности</option>
+          </select>
+        </div>
+        <div>
+          <label>Обращение в вопросе</label>
+          <select v-model="exercise.config.questionChordInversion">
+            <option value="root">Корень внизу (до мажор: C–E–G)</option>
+            <option value="first">Первое обращение (E–G–C)</option>
+            <option value="second">Второе обращение (G–C–E)</option>
+          </select>
+        </div>
+        <p class="muted field-pair__hint">
+          Только вопрос и диктант. Каденция и закрепление — корень внизу, все ноты в выбранных
+          октавах. Главная нота ступени всегда в разрешённом диапазоне.
         </p>
       </div>
 
-      <div class="field">
-        <label>Количество вопросов</label>
-        <input v-model.number="exercise.config.questionCount" type="number" min="1" max="200" />
+      <div v-if="exercise.config.mode === 'stepGuess'" class="field field-pair">
+        <div>
+          <label>Нот в закреплении</label>
+          <select v-model.number="exercise.config.reinforcementNoteCount">
+            <option :value="1">1 — главная нота (корень)</option>
+            <option :value="2">2 — корень и терция (большая или малая)</option>
+            <option :value="3">3 — трезвучие ступени</option>
+          </select>
+        </div>
+        <p class="muted field-pair__hint">
+          После верного ответа. Корень внизу, терция по гармонии ступени в тональности.
+        </p>
       </div>
 
-      <div class="field">
-        <label>Темп (BPM)</label>
-        <input v-model.number="exercise.config.bpm" type="number" min="40" max="160" />
+      <div class="field field-tempos">
+        <div class="field-tempos__item">
+          <label for="setup-bpm">Темп вопроса (BPM)</label>
+          <input
+            id="setup-bpm"
+            v-model.number="exercise.config.bpm"
+            type="number"
+            min="40"
+            max="160"
+          />
+        </div>
+        <div class="field-tempos__item">
+          <label for="setup-cadence-bpm">Темп каденции (BPM)</label>
+          <input
+            id="setup-cadence-bpm"
+            v-model.number="exercise.config.cadenceBpm"
+            type="number"
+            min="40"
+            max="160"
+          />
+        </div>
+        <div v-if="exercise.config.mode === 'stepGuess'" class="field-tempos__item">
+          <label for="setup-reinforcement-bpm">Темп закрепления (BPM)</label>
+          <input
+            id="setup-reinforcement-bpm"
+            v-model.number="exercise.config.reinforcementBpm"
+            type="number"
+            min="40"
+            max="160"
+          />
+        </div>
+        <p class="muted field-tempos__hint">
+          Длительность аккорда: 60/темп с (одна доля). Пауза: каденция 0,5 с, закрепление ~0,12 с
+          (ещё короче при высоком темпе).
+        </p>
       </div>
 
-      <template v-if="exercise.config.mode === 'stepGuess'">
-        <div class="field">
-          <label>
+      <div class="settings-row">
+        <div class="settings-row__item">
+          <label for="setup-question-count">Количество вопросов</label>
+          <input
+            id="setup-question-count"
+            v-model.number="exercise.config.questionCount"
+            type="number"
+            min="1"
+            max="200"
+          />
+        </div>
+
+        <template v-if="exercise.config.mode === 'stepGuess'">
+          <label class="settings-row__check">
             <input v-model="exercise.config.showHintAfterError" type="checkbox" />
             Показывать правильную ступень после ошибки
           </label>
-        </div>
 
-        <div class="field">
-          <label>
+          <label class="settings-row__check">
             <input v-model="exercise.config.highlightQuestionOnPlay" type="checkbox" />
             Подсвечивать ступень при проигрывании вопроса
           </label>
-          <p class="muted">
-            Каденция и закрепление подсвечиваются всегда. По умолчанию вопрос не подсвечивается.
-          </p>
-        </div>
-      </template>
+        </template>
 
-      <template v-else>
-        <div class="field">
-          <label>
+        <template v-else>
+          <label class="settings-row__check">
             <input v-model="exercise.config.highlightQuestionOnPlay" type="checkbox" />
             Подсвечивать цепочку при первом проигрывании
           </label>
-          <p class="muted">
-            Каденция и повтор после ответа подсвечиваются всегда. По умолчанию цепочка вопроса не
-            подсвечивается.
-          </p>
-        </div>
-      </template>
+        </template>
 
-      <div class="field">
-        <label>Обозначение нот</label>
-        <select v-model="settings.notationMode" @change="settings.save()">
-          <option value="letters">Буквы (C, D, E…)</option>
-          <option value="degrees">Ступенные цифры</option>
-        </select>
+        <div class="settings-row__item settings-row__item--notation">
+          <label for="setup-notation">Обозначение нот</label>
+          <select id="setup-notation" v-model="settings.notationMode" @change="settings.save()">
+            <option value="letters">Буквы (C, D, E…)</option>
+            <option value="degrees">Ступенные цифры</option>
+          </select>
+        </div>
       </div>
 
       <div class="field">
@@ -393,6 +499,128 @@ function start(): void {
   gap: 0.4rem;
   cursor: pointer;
   white-space: nowrap;
+}
+.field-one-line {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+}
+.field-one-line__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.field-one-line__hint {
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+.field-pair {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem 1.5rem;
+}
+.field-pair > div {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+.field-pair__hint {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+.field-tempos {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem 1.5rem;
+  margin-bottom: 1rem;
+}
+.field-tempos__item {
+  flex: 0 1 auto;
+}
+.field-tempos__item label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+.field-tempos__item input {
+  width: 5.5rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--surface2);
+  background: var(--bg);
+  color: var(--text);
+}
+.field-tempos__hint {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+.settings-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  margin-bottom: 1rem;
+}
+.settings-row__item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.settings-row__item label {
+  margin: 0;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+.settings-row__item input[type='number'],
+.settings-row__item select {
+  width: auto;
+  min-width: 4.5rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--surface2);
+  background: var(--bg);
+  color: var(--text);
+}
+.settings-row__item--notation select {
+  min-width: 11rem;
+}
+.settings-row__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+.cadence-input {
+  width: 100%;
+  font-family: ui-monospace, monospace;
+  font-size: 0.95rem;
+}
+.cadence-hint {
+  margin: 0.5rem 0 0;
+  line-height: 1.45;
+}
+.cadence-hint code {
+  font-size: 0.85em;
+}
+.cadence-warn {
+  margin: 0.5rem 0 0;
 }
 .edit-banner {
   margin: 0 0 1rem;

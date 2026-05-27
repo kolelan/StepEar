@@ -1,7 +1,10 @@
 import type { ChordQuality, KeyPreference, NoteName } from './types'
 
 export const DEFAULT_BPM = 90
+/** Пауза между аккордами каденции и вопроса. */
 export const PAUSE_SEC = 0.5
+/** Пауза между аккордами закрепления (короче, чтобы темп ощущался ровнее). */
+export const REINFORCEMENT_PAUSE_SEC = 0.12
 export const FIRST_OCTAVE_BASE_MIDI = 60
 
 export const MAJOR_SEMITONES = [0, 2, 4, 5, 7, 9, 11]
@@ -21,6 +24,17 @@ export const CHORD_INTERVALS: Record<ChordQuality, number[]> = {
   minor: [0, 3, 7],
   diminished: [0, 3, 6],
 }
+
+/** Септаккорды ступеней в мажорной тональности (от корня ступени). */
+export const MAJOR_KEY_SEVENTH_INTERVALS: number[][] = [
+  [0, 4, 7, 11],
+  [0, 3, 7, 10],
+  [0, 3, 7, 10],
+  [0, 4, 7, 11],
+  [0, 4, 7, 10],
+  [0, 3, 7, 10],
+  [0, 3, 6, 10],
+]
 
 export const KEY_PREFERENCE_BY_ROOT: Record<NoteName, KeyPreference> = {
   C: 'natural',
@@ -49,10 +63,10 @@ export const REINFORCEMENT_SEQUENCES: Record<number, number[]> = {
 }
 
 /**
- * Каденция по умолчанию T–S–D–T:
- * тоника (1) → субдоминанта (4) → доминанта (5) → тоника (1).
+ * Каденция по умолчанию T–S–D–T (строка нотации).
+ * @see DEFAULT_CADENCE_NOTATION в cadence-notation.ts
  */
-export const CADENCE_T_S_D_T = [1, 4, 5, 1] as const
+export { DEFAULT_CADENCE_NOTATION as CADENCE_DEFAULT_NOTATION } from './cadence-notation'
 
 export const DEFAULT_COLOR_THRESHOLDS = {
   green: 90,

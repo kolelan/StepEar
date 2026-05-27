@@ -52,7 +52,19 @@ onMounted(load)
       <h2>{{ item.name }}</h2>
       <p class="muted">
         {{ modeLabel(item.mode) }} · {{ rootLabel(item.root) }} · ступени
-        {{ item.steps.join(', ') }} · {{ item.questionCount }} вопросов · {{ item.bpm }} BPM
+        {{ item.steps.join(', ') }} · {{ item.questionCount }} вопросов · вопрос
+        {{ item.bpm }} BPM
+        <template v-if="(item.cadenceBpm ?? item.bpm) !== item.bpm">
+          · каденция {{ item.cadenceBpm ?? item.bpm }}
+        </template>
+        <template
+          v-if="
+            item.mode !== 'dictation' &&
+            (item.reinforcementBpm ?? item.bpm) !== item.bpm
+          "
+        >
+          · закрепление {{ item.reinforcementBpm ?? item.bpm }}
+        </template>
         <template v-if="item.mode === 'dictation'">
           · {{ item.dictationSoundCount ?? 4 }} звуков
         </template>

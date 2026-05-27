@@ -14,14 +14,14 @@ const {
   progressLabel,
   hintStep,
   isPlaying,
-  playbackStep,
+  highlightedPlaybackStep,
   correctQuestions,
   completedQuestions,
   failedQuestions,
   questionHadWrongAttempt,
   stepStats,
-  guessedSteps,
-  missedSteps,
+  guessedStepGroups,
+  missedStepGroups,
   percent,
   start,
   repeatQuestion,
@@ -79,14 +79,30 @@ watch(
       <span v-if="failedQuestions > 0" class="stat-bad">С ошибкой: {{ failedQuestions }}</span>
     </div>
 
-    <div v-if="guessedSteps.length || missedSteps.length" class="step-track">
-      <p v-if="guessedSteps.length">
+    <div v-if="guessedStepGroups.length || missedStepGroups.length" class="step-track">
+      <p v-if="guessedStepGroups.length" class="step-track__row">
         <span class="stat-ok">Без ошибок:</span>
-        {{ guessedSteps.join(', ') }}
+        <span class="step-groups">
+          <span
+            v-for="g in guessedStepGroups"
+            :key="`ok-${g.step}`"
+            class="step-chip step-chip--ok"
+          >
+            {{ g.step }}<span v-if="g.count > 1" class="step-chip__count">×{{ g.count }}</span>
+          </span>
+        </span>
       </p>
-      <p v-if="missedSteps.length">
+      <p v-if="missedStepGroups.length" class="step-track__row">
         <span class="stat-bad">С ошибкой или пропуск:</span>
-        {{ missedSteps.join(', ') }}
+        <span class="step-groups">
+          <span
+            v-for="g in missedStepGroups"
+            :key="`bad-${g.step}`"
+            class="step-chip step-chip--bad"
+          >
+            {{ g.step }}<span v-if="g.count > 1" class="step-chip__count">×{{ g.count }}</span>
+          </span>
+        </span>
       </p>
     </div>
 
@@ -97,13 +113,15 @@ watch(
     </p>
     <p v-if="hintStep" class="muted">Подсказка: правильная ступень — {{ hintStep }}</p>
 
-    <StepButtons
-      :scale="exercise.scale"
-      :notation-mode="settings.notationMode"
-      :visible-steps="exercise.displaySteps"
+      <StepButtons
+        :scale="exercise.scale"
+        :notation-mode="settings.notationMode"
+        :question-note-count="exercise.config.questionNoteCount"
+        :question-chord-inversion="exercise.config.questionChordInversion"
+        :visible-steps="exercise.displaySteps"
       :question-steps="exercise.trainingSteps"
       :can-answer="phase === 'answering' && !isPlaying"
-      :playback-step="playbackStep"
+      :playback-step="highlightedPlaybackStep"
       :hint-step="hintStep"
       @select="(s) => submitAnswer(s)"
     />
@@ -152,11 +170,29 @@ watch(
     </p>
 
     <div class="step-track">
-      <p v-if="guessedSteps.length">
-        <span class="stat-ok">Без ошибок:</span> {{ guessedSteps.join(', ') }}
+      <p v-if="guessedStepGroups.length" class="step-track__row">
+        <span class="stat-ok">Без ошибок:</span>
+        <span class="step-groups">
+          <span
+            v-for="g in guessedStepGroups"
+            :key="`ok-f-${g.step}`"
+            class="step-chip step-chip--ok"
+          >
+            {{ g.step }}<span v-if="g.count > 1" class="step-chip__count">×{{ g.count }}</span>
+          </span>
+        </span>
       </p>
-      <p v-if="missedSteps.length">
-        <span class="stat-bad">С ошибкой или пропуск:</span> {{ missedSteps.join(', ') }}
+      <p v-if="missedStepGroups.length" class="step-track__row">
+        <span class="stat-bad">С ошибкой или пропуск:</span>
+        <span class="step-groups">
+          <span
+            v-for="g in missedStepGroups"
+            :key="`bad-f-${g.step}`"
+            class="step-chip step-chip--bad"
+          >
+            {{ g.step }}<span v-if="g.count > 1" class="step-chip__count">×{{ g.count }}</span>
+          </span>
+        </span>
       </p>
     </div>
 
@@ -202,8 +238,39 @@ watch(
   font-size: 0.9rem;
   margin-bottom: 0.75rem;
 }
-.step-track p {
-  margin: 0.25rem 0;
+.step-track__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.5rem;
+  margin: 0.35rem 0;
+}
+.step-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.step-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.1rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 6px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.step-chip--ok {
+  color: var(--color-ok);
+  background: color-mix(in srgb, var(--color-ok) 12%, transparent);
+}
+.step-chip--bad {
+  color: var(--color-bad);
+  background: color-mix(in srgb, var(--color-bad) 12%, transparent);
+}
+.step-chip__count {
+  font-size: 0.8em;
+  font-weight: 500;
+  opacity: 0.85;
 }
 .step-stats {
   margin: 0;

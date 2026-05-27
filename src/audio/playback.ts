@@ -1,12 +1,32 @@
-import { CADENCE_T_S_D_T } from '@/music/constants'
+import {
+  type CadenceChord,
+  cadenceChordLabel,
+  DEFAULT_CADENCE_NOTATION,
+  getCadenceChordMidis,
+  resolveCadenceChords,
+} from '@/music/cadence-notation'
 import { getReinforcementMotion, getReinforcementSequence } from '@/music/reinforcement'
-import type { VoicingMotion } from '@/music/voicing'
+import { clampReinforcementNoteCount } from '@/music/reinforcement-notes'
 import { getReinforcementChordMidis } from '@/music/reinforcement-chords'
-import { getChordMidis } from '@/music/scale'
-import { getStep8ChordMidis } from '@/music/step8'
-import { chordDurationSec, pauseDurationSec } from '@/music/timing'
-import type { InstrumentId, ScaleDefinition } from '@/music/types'
-import { VoicingEngine } from '@/music/voicing'
+import {
+  clampQuestionNoteCount,
+  getQuestionChordMidis,
+  type QuestionNoteCount,
+} from '@/music/question-chord'
+import {
+  chordDurationSec,
+  chordPlaybackWaitSec,
+  pauseDurationSec,
+  PLAYBACK_SCHEDULE_LEAD_SEC,
+} from '@/music/timing'
+import type {
+  InstrumentId,
+  QuestionChordInversion,
+  ReinforcementNoteCount,
+  ScaleDefinition,
+} from '@/music/types'
+import { normalizeQuestionChordInversion } from '@/music/chord-inversion'
+import { logAudio, logInfo } from '@/utils/log-info'
 import { InstrumentSampler } from './instrument-sampler'
 
 export interface PlaybackStepCallbacks {
@@ -22,8 +42,37 @@ export interface PlaybackHighlightOptions {
 
 export class PlaybackService {
   private sampler = new InstrumentSampler()
-  private voicing = new VoicingEngine()
   private abortFlag = false
+  private questionNoteCount: QuestionNoteCount = 3
+  private questionChordInversion: QuestionChordInversion = 'root'
+  private reinforcementNoteCount: ReinforcementNoteCount = 3
+  private cadenceChords: CadenceChord[] = resolveCadenceChords(
+    DEFAULT_CADENCE_NOTATION,
+  ).chords
+
+  setQuestionNoteCount(count: number): void {
+    this.questionNoteCount = clampQuestionNoteCount(count)
+  }
+
+  setQuestionChordInversion(inversion: QuestionChordInversion): void {
+    this.questionChordInversion = normalizeQuestionChordInversion(inversion)
+  }
+
+  setReinforcementNoteCount(count: number): void {
+    this.reinforcementNoteCount = clampReinforcementNoteCount(count)
+  }
+
+  setCadenceNotation(notation: string): void {
+    const resolved = resolveCadenceChords(notation)
+    this.cadenceChords = resolved.chords
+    if (resolved.usedDefault && resolved.error) {
+      logInfo('Каденция: неверная нотация, используется по умолчанию', {
+        input: notation,
+        error: resolved.error,
+        default: DEFAULT_CADENCE_NOTATION,
+      })
+    }
+  }
 
   async unlock(instrument?: InstrumentId): Promise<void> {
     if (instrument) this.sampler.setInstrument(instrument)
@@ -43,7 +92,6 @@ export class PlaybackService {
   }
 
   resetVoicing(): void {
-    this.voicing.reset()
     this.abortFlag = false
   }
 
@@ -52,37 +100,47 @@ export class PlaybackService {
     await new Promise((r) => setTimeout(r, sec * 1000))
   }
 
-  private async playChordNotes(notes: number[], bpm: number): Promise<void> {
+  private async playChordNotes(
+    notes: number[],
+    bpm: number,
+    logContext?: string,
+  ): Promise<void> {
+    if (logContext) logAudio(logContext, notes)
     await this.sampler.ensureContext()
     const ctx = await this.sampler.ensureContext()
     const dur = chordDurationSec(bpm)
-    const start = ctx.currentTime + 0.05
+    const start = ctx.currentTime + PLAYBACK_SCHEDULE_LEAD_SEC
     this.sampler.playChord(notes, start, dur)
-    await this.wait(dur)
+    await this.wait(chordPlaybackWaitSec(bpm))
   }
 
-  /** Каденция — фиксированный регистр (корневые положения по тонике), без переноса с прошлого вопроса. */
-  private async playCadenceStep(
+  private async playCadenceChord(
     scale: ScaleDefinition,
-    step: number,
+    chord: CadenceChord,
+    index: number,
     bpm: number,
   ): Promise<void> {
-    const notes = getChordMidis(scale, step)
-    await this.playChordNotes(notes, bpm)
+    const notes = getCadenceChordMidis(scale, chord)
+    await this.playChordNotes(notes, bpm, cadenceChordLabel(chord, index))
+  }
+
+  private resolveQuestionNotes(scale: ScaleDefinition, step: number): number[] {
+    return getQuestionChordMidis(
+      scale,
+      step,
+      this.questionNoteCount,
+      this.questionChordInversion,
+    )
   }
 
   private async playVoicedStep(
     scale: ScaleDefinition,
     step: number,
     bpm: number,
-    motion: VoicingMotion = 'free',
+    logContext?: string,
   ): Promise<number> {
-    const notes =
-      step === 8
-        ? getStep8ChordMidis(scale)
-        : this.voicing.voiceStep(scale, step, motion)
-    if (step === 8) this.voicing.reset()
-    await this.playChordNotes(notes, bpm)
+    const notes = this.resolveQuestionNotes(scale, step)
+    await this.playChordNotes(notes, bpm, logContext ?? `Ступень ${step}`)
     return chordDurationSec(bpm)
   }
 
@@ -105,10 +163,16 @@ export class PlaybackService {
     bpm: number,
     callbacks?: PlaybackStepCallbacks,
   ): Promise<void> {
-    this.voicing.reset()
-    for (const step of CADENCE_T_S_D_T) {
+    for (let i = 0; i < this.cadenceChords.length; i++) {
       if (this.abortFlag) return
-      await this.playStepWithCallbacks(step, () => this.playCadenceStep(scale, step, bpm), callbacks)
+      const chord = this.cadenceChords[i]!
+      const highlightStep = chord.kind === 'step' ? chord.step : 0
+      await this.playStepWithCallbacks(
+        highlightStep,
+        () => this.playCadenceChord(scale, chord, i, bpm),
+        callbacks,
+        i,
+      )
       if (this.abortFlag) return
       await this.wait(pauseDurationSec())
     }
@@ -122,14 +186,17 @@ export class PlaybackService {
     bpm: number,
     callbacks?: PlaybackStepCallbacks,
   ): Promise<void> {
-    this.voicing.reset()
     for (let i = 0; i < sequence.length; i++) {
       if (this.abortFlag) return
       const step = sequence[i]!
+      const seqLabel =
+        sequence.length > 1
+          ? `Цепочка ${i + 1}/${sequence.length}, ступень ${step}`
+          : `Ступень ${step}`
       await this.playStepWithCallbacks(
         step,
         async () => {
-          await this.playVoicedStep(scale, step, bpm)
+          await this.playVoicedStep(scale, step, bpm, seqLabel)
         },
         callbacks,
         i,
@@ -144,26 +211,31 @@ export class PlaybackService {
   async playCadenceAndSequence(
     scale: ScaleDefinition,
     sequence: number[],
-    bpm: number,
+    cadenceBpm: number,
+    questionBpm: number,
     callbacks?: PlaybackStepCallbacks,
     options?: PlaybackHighlightOptions,
   ): Promise<void> {
     this.abortFlag = false
-    await this.playCadence(scale, bpm, callbacks)
+    logInfo('Воспроизведение: каденция + диктант', {
+      sequence,
+      cadenceBpm,
+      questionBpm,
+    })
+    await this.playCadence(scale, cadenceBpm, callbacks)
     if (this.abortFlag) return
     const sequenceCallbacks = options?.highlightSequence ? callbacks : undefined
-    await this.playVoicedSequence(scale, sequence, bpm, sequenceCallbacks)
+    await this.playVoicedSequence(scale, sequence, questionBpm, sequenceCallbacks)
   }
 
   async playSequenceOnly(
     scale: ScaleDefinition,
     sequence: number[],
-    bpm: number,
+    questionBpm: number,
     callbacks?: PlaybackStepCallbacks,
   ): Promise<void> {
     this.abortFlag = false
-    this.voicing.reset()
-    await this.playVoicedSequence(scale, sequence, bpm, callbacks)
+    await this.playVoicedSequence(scale, sequence, questionBpm, callbacks)
   }
 
   private async playQuestionChord(
@@ -173,33 +245,40 @@ export class PlaybackService {
     callbacks?: PlaybackStepCallbacks,
     highlightQuestion = false,
   ): Promise<void> {
+    const questionLabel = `Вопрос, ступень ${questionStep}`
     if (highlightQuestion && callbacks) {
       await this.playStepWithCallbacks(
         questionStep,
         async () => {
-          await this.playVoicedStep(scale, questionStep, bpm)
+          await this.playVoicedStep(scale, questionStep, bpm, questionLabel)
         },
         callbacks,
       )
       return
     }
-    await this.playVoicedStep(scale, questionStep, bpm)
+    await this.playVoicedStep(scale, questionStep, bpm, questionLabel)
   }
 
   async playCadenceAndQuestion(
     scale: ScaleDefinition,
     questionStep: number,
-    bpm: number,
+    cadenceBpm: number,
+    questionBpm: number,
     callbacks?: PlaybackStepCallbacks,
     options?: PlaybackHighlightOptions,
   ): Promise<void> {
     this.abortFlag = false
-    await this.playCadence(scale, bpm, callbacks)
+    logInfo('Воспроизведение: каденция + вопрос', {
+      step: questionStep,
+      cadenceBpm,
+      questionBpm,
+    })
+    await this.playCadence(scale, cadenceBpm, callbacks)
     if (this.abortFlag) return
     await this.playQuestionChord(
       scale,
       questionStep,
-      bpm,
+      questionBpm,
       callbacks,
       options?.highlightQuestion,
     )
@@ -225,7 +304,7 @@ export class PlaybackService {
   async playReinforcement(
     scale: ScaleDefinition,
     questionStep: number,
-    bpm: number,
+    reinforcementBpm: number,
     callbacks?: PlaybackStepCallbacks,
   ): Promise<void> {
     const seq = getReinforcementSequence(questionStep)
@@ -237,14 +316,20 @@ export class PlaybackService {
       await this.playStepWithCallbacks(
         step,
         async () => {
-          const notes = getReinforcementChordMidis(scale, step, prev, motion)
-          await this.playChordNotes(notes, bpm)
+          const notes = getReinforcementChordMidis(
+            scale,
+            step,
+            prev,
+            motion,
+            this.reinforcementNoteCount,
+          )
+          await this.playChordNotes(notes, reinforcementBpm, `Закрепление, ступень ${step}`)
           prev = notes
         },
         callbacks,
       )
       if (i < seq.length - 1 && !this.abortFlag) {
-        await this.wait(pauseDurationSec())
+        await this.wait(pauseDurationSec('reinforcement', reinforcementBpm))
       }
     }
   }

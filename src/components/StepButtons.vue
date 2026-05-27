@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { formatChordForStep } from '@/music/notation'
-import type { ScaleDefinition, NotationMode } from '@/music/types'
+import type { NotationMode, QuestionChordInversion, ScaleDefinition } from '@/music/types'
 
 const props = defineProps<{
   scale: ScaleDefinition
   notationMode: NotationMode
+  questionNoteCount?: number
+  questionChordInversion?: QuestionChordInversion
   /** Все ступени, видимые в сетке (выбраны в упражнении). */
   visibleSteps: number[]
   /** Ступени, на которые можно отвечать в вопросах. */
@@ -25,7 +27,13 @@ const steps = computed(() => props.visibleSteps.filter((s) => s >= 1 && s <= 8))
 const questionSet = computed(() => new Set(props.questionSteps))
 
 function label(step: number): string {
-  return formatChordForStep(step, props.scale, props.notationMode)
+  return formatChordForStep(
+    step,
+    props.scale,
+    props.notationMode,
+    props.questionNoteCount,
+    props.questionChordInversion,
+  )
 }
 
 function isQuestionStep(step: number): boolean {

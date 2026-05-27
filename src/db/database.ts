@@ -1,6 +1,12 @@
 import Dexie, { type Table } from 'dexie'
 import type { ExerciseMode } from '@/stores/exercise'
-import type { InstrumentId, NoteName, NotationMode, OctaveConfig } from '@/music/types'
+import type {
+  InstrumentId,
+  NoteName,
+  NotationMode,
+  OctaveConfig,
+  QuestionChordInversion,
+} from '@/music/types'
 
 export interface SavedExercise {
   id?: number
@@ -11,12 +17,18 @@ export interface SavedExercise {
   dictationSoundCount?: number
   questionCount: number
   bpm: number
+  cadenceBpm?: number
+  cadenceNotation?: string
+  reinforcementBpm?: number
+  reinforcementNoteCount?: number
   showHintAfterError: boolean
   highlightQuestionOnPlay?: boolean
   notationMode: NotationMode
   octaves?: OctaveConfig
   instrument?: InstrumentId
   balancedSteps?: boolean
+  questionNoteCount?: number
+  questionChordInversion?: QuestionChordInversion
   createdAt: number
 }
 

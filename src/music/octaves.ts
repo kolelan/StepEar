@@ -37,7 +37,37 @@ function rangeContaining(midi: number, ranges: MidiRange[]): MidiRange | undefin
   return ranges.find((r) => midi >= r.min && midi <= r.max)
 }
 
-function placeUpperVoice(
+export function placeBelowVoice(
+  pitchClassMidi: number,
+  aboveMidi: number,
+  ranges: MidiRange[],
+): number | null {
+  let n = pitchClassMidi
+  while (n >= aboveMidi) n -= 12
+
+  if (isMidiInRanges(n, ranges)) {
+    const aboveRange = rangeContaining(aboveMidi, ranges)
+    const noteRange = rangeContaining(n, ranges)
+    if (
+      aboveRange &&
+      noteRange &&
+      aboveRange.id === noteRange.id &&
+      aboveMidi - n < 4
+    ) {
+      const dropped = n - 12
+      if (isMidiInRanges(dropped, ranges)) return dropped
+    }
+    return n
+  }
+
+  for (let k = 0; k < 4; k++) {
+    const tryMidi = n - 12 * k
+    if (isMidiInRanges(tryMidi, ranges) && tryMidi < aboveMidi) return tryMidi
+  }
+  return null
+}
+
+export function placeUpperVoice(
   pitchClassMidi: number,
   belowMidi: number,
   ranges: MidiRange[],
@@ -67,18 +97,17 @@ function placeUpperVoice(
   return null
 }
 
-export function placeChordFromDegree(
+export function placeChordFromIntervals(
   degreeRootMidi: number,
-  quality: ChordQuality,
+  intervals: number[],
   ranges: MidiRange[],
 ): number[] | null {
+  if (intervals.length === 0) return null
   const bassInRange = isMidiInRanges(degreeRootMidi, ranges)
   if (!bassInRange) {
-    const intervals = CHORD_INTERVALS[quality]
     return intervals.map((i) => degreeRootMidi + i)
   }
 
-  const intervals = CHORD_INTERVALS[quality]
   const bass = degreeRootMidi
   const notes: number[] = [bass]
 
@@ -89,8 +118,16 @@ export function placeChordFromDegree(
     notes.push(placed)
   }
 
-  if (notes[2]! - notes[0]! > 24) return null
+  if (notes[notes.length - 1]! - notes[0]! > 24) return null
   return notes
+}
+
+export function placeChordFromDegree(
+  degreeRootMidi: number,
+  quality: ChordQuality,
+  ranges: MidiRange[],
+): number[] | null {
+  return placeChordFromIntervals(degreeRootMidi, CHORD_INTERVALS[quality], ranges)
 }
 
 export function getDegreeQuality(step: number): ChordQuality {

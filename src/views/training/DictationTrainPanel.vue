@@ -14,7 +14,7 @@ const {
   phase,
   progressLabel,
   isPlaying,
-  playbackStep,
+  highlightedPlaybackStep,
   activeSlotIndex,
   userAnswer,
   expectedSequence,
@@ -97,13 +97,15 @@ watch(
       :active-slot-index="activeSlotIndex"
     />
 
-    <StepButtons
-      :scale="exercise.scale"
-      :notation-mode="settings.notationMode"
-      :visible-steps="exercise.displaySteps"
+      <StepButtons
+        :scale="exercise.scale"
+        :notation-mode="settings.notationMode"
+        :question-note-count="exercise.config.questionNoteCount"
+        :question-chord-inversion="exercise.config.questionChordInversion"
+        :visible-steps="exercise.displaySteps"
       :question-steps="exercise.trainingSteps"
       :can-answer="phase === 'answering' && !isPlaying"
-      :playback-step="playbackStep"
+      :playback-step="highlightedPlaybackStep"
       @select="(s) => submitStep(s)"
     />
 

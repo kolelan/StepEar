@@ -144,6 +144,40 @@ npm run dev
 
 ---
 
+## Публикация в подпапке (например `/stepear/`)
+
+1. Скопируйте `.env.example` в `.env.production` и задайте путь:
+
+```env
+VITE_BASE_PATH=/stepear/
+```
+
+2. Соберите: `npm run build`.
+
+3. Загрузите **содержимое `dist/`** в каталог `stepear` на сервере (URL: `https://site_name.ru/stepear/`).
+
+4. Настройте веб-сервер: для любого пути внутри `/stepear/` отдавать `stepear/index.html` (SPA fallback).
+
+**Nginx (пример):**
+
+```nginx
+location /stepear/ {
+  alias /var/www/html/stepear/;
+  try_files $uri $uri/ /stepear/index.html;
+}
+```
+
+Для **корня домена** оставьте `VITE_BASE_PATH=/` или не создавайте `.env.production`.
+
+Локальная проверка подпапки:
+
+```bash
+# PowerShell
+$env:VITE_BASE_PATH="/stepear/"; npm run build; npm run preview
+```
+
+---
+
 ## Установка PWA
 
 1. Соберите проект: `npm run build`.

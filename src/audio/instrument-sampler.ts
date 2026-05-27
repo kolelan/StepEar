@@ -3,9 +3,11 @@ import type { InstrumentId } from '@/music/types'
 const PITCH_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'] as const
 const REFERENCE_OCTAVE = 4
 
+const assetBase = import.meta.env.BASE_URL
+
 const INSTRUMENT_PATH: Record<InstrumentId, string> = {
-  piano: '/samples/piano',
-  guitar: '/samples/guitar',
+  piano: `${assetBase}samples/piano`,
+  guitar: `${assetBase}samples/guitar`,
 }
 
 function sampleUrl(instrument: InstrumentId, pitchName: (typeof PITCH_NAMES)[number]): string {
