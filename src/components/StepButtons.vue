@@ -58,8 +58,9 @@ function isDisabled(step: number): boolean {
   return !props.canAnswer || !isQuestionStep(step)
 }
 
-function onClick(step: number): void {
+function onClick(step: number, ev: MouseEvent): void {
   if (isDisabled(step)) return
+  ;(ev.currentTarget as HTMLButtonElement | null)?.blur()
   emit('select', step)
 }
 </script>
@@ -76,7 +77,7 @@ function onClick(step: number): void {
       :class="btnClass(step)"
       :disabled="isDisabled(step)"
       :aria-disabled="isDisabled(step)"
-      @click="onClick(step)"
+      @click="onClick(step, $event)"
     >
       <span class="step-num">{{ step }}</span>
       <span class="step-notes">{{ label(step) }}</span>
